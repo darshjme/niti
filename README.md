@@ -1,0 +1,132 @@
+# agent-policy
+
+**Policy-based access control for agent actions.**
+
+> "agent-A can read data but not write. agent-B can call external APIs but not databases."
+
+Zero dependencies. Python 3.10+.
+
+---
+
+## Install
+
+```bash
+pip install agent-policy
+```
+
+---
+
+## Quick Start
+
+```python
+from agent_policy import Permission, Policy, PolicyEngine, require_permission, PermissionDeniedError
+
+# 1. Build an engine
+engine = PolicyEngine()
+
+# 2. Define policies
+read_only = (
+    Policy("read-only")
+    .add_permission(Permission("db:*", "read"))        # allow all db reads
+    .add_deny(Permission("db:admin", "*"))              # deny admin table entirely
+)
+
+api_caller = (
+    Policy("api-caller")
+    .add_permission(Permission("api:*", "*"))           # allow all API calls
+)
+
+# 3. Attach to agents
+engine.attach("agent-A", read_only)
+engine.attach("agent-B", api_caller)
+
+# 4. Check at runtime
+result = engine.check("agent-A", "db:users", "read")
+print(result.allowed)  # True
+print(result.reason)   # "Allowed by policy 'read-only' ..."
+
+result = engine.check("agent-A", "db:users", "write")
+print(result.allowed)  # False
+
+# 5. Use as a decorator
+@require_permission(engine, agent_id="agent-A", resource="db:users", action="read")
+def fetch_users():
+    return ["alice", "bob"]
+
+fetch_users()  # works fine
+
+@require_permission(engine, agent_id="agent-A", resource="db:users", action="delete")
+def delete_user(uid):
+    ...
+
+try:
+    delete_user("alice")
+except PermissionDeniedError as e:
+    print(e)  # Agent 'agent-A' denied: delete on 'db:users' — ...
+```
+
+---
+
+## API Reference
+
+### `Permission(resource, action, conditions=None)`
+| Arg | Type | Description |
+|-----|------|-------------|
+| `resource` | `str` | Resource pattern (supports `*` wildcards) |
+| `action` | `str` | Action pattern (supports `*` wildcards) |
+| `conditions` | `dict` | Optional key/value constraints checked against context |
+
+**Methods:** `matches(resource, action, context) -> bool`, `to_dict() -> dict`
+
+---
+
+### `Policy(name, permissions=None, deny=None)`
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `add_permission(perm)` | `Policy` | Add allow rule (fluent) |
+| `add_deny(perm)` | `Policy` | Add deny rule — overrides allow (fluent) |
+| `allows(resource, action, context)` | `bool` | Evaluate access |
+| `to_dict()` | `dict` | Serialize |
+
+---
+
+### `PolicyEngine()`
+| Method | Description |
+|--------|-------------|
+| `attach(agent_id, policy)` | Attach policy to agent |
+| `detach(agent_id, policy_name)` | Remove policy from agent |
+| `check(agent_id, resource, action, context) -> PolicyResult` | Evaluate access |
+| `policies_for(agent_id) -> list[Policy]` | List attached policies |
+
+---
+
+### `PolicyResult`
+| Field | Type | Description |
+|-------|------|-------------|
+| `allowed` | `bool` | Access decision |
+| `reason` | `str` | Human-readable explanation |
+| `agent_id` | `str` | Agent evaluated |
+| `resource` | `str` | Resource checked |
+| `action` | `str` | Action checked |
+
+---
+
+### `@require_permission(engine, agent_id, resource, action, context=None)`
+Decorator that calls `engine.check(...)` before executing the wrapped function.
+Raises `PermissionDeniedError` on denial.
+
+---
+
+## Design Principles
+
+- **Explicit deny wins** — deny rules always override allow rules.
+- **Default deny** — agents with no policies are denied everything.
+- **Wildcard patterns** — `db:*`, `api:*`, `*` via `fnmatch`.
+- **Condition guards** — `conditions={"env": "prod"}` adds runtime context checks.
+- **Zero deps** — stdlib only, Python 3.10+.
+
+---
+
+## License
+
+MIT

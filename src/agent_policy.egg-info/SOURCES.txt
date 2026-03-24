@@ -1,0 +1,15 @@
+README.md
+pyproject.toml
+src/agent_policy/__init__.py
+src/agent_policy/decorator.py
+src/agent_policy/engine.py
+src/agent_policy/exceptions.py
+src/agent_policy/permission.py
+src/agent_policy/policy.py
+src/agent_policy/result.py
+src/agent_policy.egg-info/PKG-INFO
+src/agent_policy.egg-info/SOURCES.txt
+src/agent_policy.egg-info/dependency_links.txt
+src/agent_policy.egg-info/requires.txt
+src/agent_policy.egg-info/top_level.txt
+tests/test_agent_policy.py
